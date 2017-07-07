@@ -1,2 +1,0 @@
-# training
-sample configuration
