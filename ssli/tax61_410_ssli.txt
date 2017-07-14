@@ -1,0 +1,226 @@
+!
+partition in id 1 application-type adc 
+!
+partition ex id 2 application-type adc 
+!
+hostname tax61 
+!
+interface management 
+  ip address 10.255.251.61 255.255.0.0 
+  ip default-gateway 10.255.251.99 
+  exit-module
+!
+interface ethernet 1 
+  exit-module
+!       
+interface ethernet 2 
+  exit-module
+!
+interface ethernet 3 
+  exit-module
+!
+interface ethernet 4 
+  exit-module
+!
+interface ethernet 5 
+  exit-module
+!
+!
+end
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!
+active-partition in
+!
+!
+access-list 100 deny ip 10.200.5.0 0.0.0.255 10.0.1.0 0.0.0.255 vlan 10 
+!
+access-list 100 permit ip 10.200.5.0 0.0.0.255 any vlan 10 
+!
+vlan 10 
+  untagged ethernet 1
+  router-interface ve 10 
+  exit-module
+!
+vlan 20 
+  untagged ethernet 3
+  router-interface ve 20 
+  exit-module
+!
+interface ethernet 1 
+  enable 
+  exit-module
+!
+interface ethernet 3 
+  enable 
+  exit-module
+!
+interface ve 10 
+  ip address 10.0.1.61 255.255.255.0 
+  ip allow-promiscuous-vip 
+  exit-module
+!
+interface ve 20 
+  ip address 10.0.2.61 255.255.255.0 
+  exit-module
+!
+!
+ip route 0.0.0.0 /0 10.0.2.200 
+!
+ip route 10.200.5.0 /24 10.0.1.1 
+!
+slb server gw1 10.0.2.200 
+  port 0 tcp 
+    health-check-disable 
+    exit-module
+  port 0 udp 
+    health-check-disable 
+    exit-module
+  port 8080 tcp 
+    health-check-disable 
+    exit-module
+  exit-module
+!
+slb service-group gw_http tcp 
+  member gw1 8080 
+    exit-module
+  exit-module
+!
+slb service-group gw_tcp tcp 
+  member gw1 0 
+    exit-module
+  exit-module
+!
+slb service-group gw_udp udp 
+  member gw1 0 
+    exit-module
+  exit-module
+!
+slb template client-ssl cs1 
+  forward-proxy-ca-cert ca1 
+  forward-proxy-ca-key ca1 
+  forward-proxy-enable 
+  exit-module
+!
+slb virtual-server wc1 0.0.0.0 acl 100 
+  port 0 tcp 
+    service-group gw_tcp 
+    use-rcv-hop-for-resp 
+    no-dest-nat 
+    exit-module
+  port 0 udp 
+    service-group gw_udp 
+    use-rcv-hop-for-resp 
+    no-dest-nat 
+    exit-module
+  port 0 others 
+    service-group gw_udp 
+    use-rcv-hop-for-resp 
+    no-dest-nat 
+    exit-module
+  port 443 https 
+    service-group gw_http 
+    use-rcv-hop-for-resp 
+    template client-ssl cs1 
+    no-dest-nat port-translation 
+    exit-module
+  exit-module
+!
+end
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!
+active-partition ex
+!
+!
+access-list 100 permit ip 10.200.5.0 0.0.0.255 any vlan 40 
+!
+vlan 40 
+  untagged ethernet 5
+  router-interface ve 40 
+  exit-module
+!
+vlan 50 
+  untagged ethernet 2
+  router-interface ve 50 
+  exit-module
+!
+interface ethernet 2 
+  enable 
+  exit-module
+!
+interface ethernet 5 
+  enable 
+  exit-module
+!
+interface ve 40 
+  ip address 10.0.11.61 255.255.255.0 
+  ip allow-promiscuous-vip 
+  exit-module
+!
+interface ve 50 
+  ip address 10.0.22.61 255.255.255.0 
+  exit-module
+!
+!
+ip route 0.0.0.0 /0 10.0.22.28 
+!       
+ip route 10.200.5.0 /24 10.0.11.200 
+!
+slb template server-ssl ss1 
+  forward-proxy-enable 
+  exit-module
+!
+slb server gw1 10.0.22.28 
+  port 0 tcp 
+    health-check-disable 
+    exit-module
+  port 0 udp 
+    health-check-disable 
+    exit-module
+  port 443 tcp 
+    health-check-disable 
+    exit-module
+  exit-module
+!
+slb service-group gw_http tcp 
+  member gw1 443 
+    exit-module
+  exit-module
+!
+slb service-group gw_tcp tcp 
+  member gw1 0 
+    exit-module
+  exit-module
+!
+slb service-group gw_udp udp 
+  member gw1 0 
+    exit-module
+  exit-module
+!
+slb virtual-server wc1 0.0.0.0 acl 100 
+  port 0 tcp 
+    service-group gw_tcp 
+    use-rcv-hop-for-resp 
+    no-dest-nat 
+    exit-module
+  port 0 udp 
+    service-group gw_udp 
+    use-rcv-hop-for-resp 
+    no-dest-nat 
+    exit-module
+  port 0 others 
+    service-group gw_udp 
+    use-rcv-hop-for-resp 
+    no-dest-nat 
+    exit-module
+  port 8080 http 
+    service-group gw_http 
+    use-rcv-hop-for-resp 
+    template server-ssl ss1 
+    no-dest-nat port-translation 
+    exit-module
+  exit-module
+!
+end
+

@@ -1,0 +1,122 @@
+!
+class-list cloud-app-url ac 
+  contains office365 
+  exit-module
+!
+vlan 10 
+  untagged ethernet 1
+  router-interface ve 10 
+  exit-module
+!
+vlan 30 
+  untagged ethernet 4
+  router-interface ve 30 
+  exit-module
+!       
+vlan 40 
+  untagged ethernet 5
+  router-interface ve 40 
+  exit-module
+!
+hostname tax41 
+!
+interface management 
+  ip address 10.255.251.41 255.255.0.0 
+  ip default-gateway 10.255.251.99 
+  exit-module
+!
+interface ethernet 1 
+  enable 
+  exit-module
+!
+interface ethernet 2 
+  exit-module
+!
+interface ethernet 3 
+  exit-module
+!
+interface ethernet 4 
+  enable 
+  exit-module
+!
+interface ethernet 5 
+  enable 
+  exit-module
+!
+interface ve 10 
+  ip address 10.0.1.41 255.255.255.0 
+  exit-module
+!
+interface ve 30 
+  ip address 10.0.3.41 255.255.255.0 
+  exit-module
+!
+interface ve 40 
+  ip address 10.0.4.41 255.255.255.0 
+  exit-module
+!
+!
+ip nat pool snat-for-cloud 10.0.3.241 10.0.3.241 netmask /24 
+!
+ip nat pool snat-for-proxy 10.0.4.241 10.0.4.241 netmask /24 
+!
+ip route 0.0.0.0 /0 10.0.1.1 
+!
+slb template dynamic-service dns-server 
+  dns server 10.0.1.1 
+  exit-module
+!
+slb server proxy1 10.0.4.141 
+  port 8080 tcp 
+    health-check-disable 
+    exit-module
+  exit-module
+!
+slb server router-fw 10.0.3.91 
+  port 80 tcp 
+    health-check-disable 
+    exit-module
+  port 443 tcp 
+    health-check-disable 
+    exit-module
+  exit-module
+!
+slb service-group g-router-fw tcp 
+  member router-fw 80 
+    exit-module
+  member router-fw 443 
+    exit-module
+  exit-module
+!
+slb service-group proxy tcp 
+  member proxy1 8080 
+    exit-module
+  exit-module
+!
+slb template policy cloud-app-template 
+  forward-policy 
+    action action-to-fw 
+      forward-to-internet g-router-fw snat snat-for-cloud 
+      log 
+      exit-module
+    action action-to-proxy 
+      forward-to-proxy proxy snat snat-for-proxy 
+      log 
+      exit-module
+    source client-ip-to-proxy 
+      match-any 
+      destination class-list cloud-app-url action action-to-fw host priority 990 
+      destination any action action-to-proxy 
+      exit-module
+    exit-module
+  exit-module
+!
+slb virtual-server v1 10.0.1.141 
+  port 8080 http 
+    template policy cloud-app-template 
+    template dynamic-service dns-server 
+    exit-module
+  exit-module
+!
+end
+
